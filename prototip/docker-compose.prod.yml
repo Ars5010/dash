@@ -1,0 +1,44 @@
+version: "3.8"
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8001:8000"
+    environment:
+      - MANICTIME_DB_HOST=${MANICTIME_DB_HOST}
+      - MANICTIME_DB_PORT=${MANICTIME_DB_PORT}
+      - MANICTIME_DB_NAME=${MANICTIME_DB_NAME}
+      - MANICTIME_DB_USER=${MANICTIME_DB_USER}
+      - MANICTIME_DB_PASSWORD=${MANICTIME_DB_PASSWORD}
+      - SERVICE_DB_HOST=service_db
+      - SERVICE_DB_PORT=5432
+      - SERVICE_DB_NAME=${SERVICE_DB_NAME:-dashboard_service}
+      - SERVICE_DB_USER=${SERVICE_DB_USER:-postgres}
+      - SERVICE_DB_PASSWORD=${SERVICE_DB_PASSWORD:-password}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+    depends_on:
+      - service_db
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  service_db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=${SERVICE_DB_NAME:-dashboard_service}
+      - POSTGRES_USER=${SERVICE_DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${SERVICE_DB_PASSWORD:-password}
+    volumes:
+      - service_db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  service_db_data:
+

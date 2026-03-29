@@ -1,0 +1,10 @@
+[project]
+name = "aw-portal-uploader"
+version = "0.1.0"
+description = "Uploads local ActivityWatch events to the portal"
+requires-python = ">=3.10"
+
+[project.scripts]
+aw-portal-uploader = "aw_portal_uploader.__main__:main"
+aw-portal-install-wizard = "aw_portal_uploader.install_wizard:main"
+

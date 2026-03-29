@@ -1,0 +1,3 @@
+[submodule "prototip/vendor/activitywatch"]
+	path = prototip/vendor/activitywatch
+	url = https://github.com/activitywatch/activitywatch.git

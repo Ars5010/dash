@@ -1,0 +1,100 @@
+# Ollama поднимается вместе со стеком; модели качаются при первом старте (долго).
+# С хоста: http://localhost:11434  ·  из backend: http://ollama:11434
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        echo "Ollama: ожидание API (до 120 c)..."
+        API_UP=0
+        for i in $$(seq 1 120); do
+          if curl -sf http://127.0.0.1:11434/api/tags >/dev/null; then API_UP=1; break; fi
+          sleep 1
+        done
+        if [ "$$API_UP" != 1 ]; then
+          echo "ОШИБКА: за 120 с API не поднялся. Проверьте логи и порт 11434." >&2
+        else
+          echo "Pull gemma3n:e4b (текст)..."
+          PULL1=0
+          ollama pull gemma3n:e4b && PULL1=1 || echo "ОШИБКА: ollama pull gemma3n:e4b" >&2
+          echo "Pull gemma3:4b-it-q4_K_M (vision для скриншотов)..."
+          PULL2=0
+          ollama pull gemma3:4b-it-q4_K_M && PULL2=1 || echo "ОШИБКА: ollama pull gemma3:4b-it-q4_K_M" >&2
+          if [ "$$PULL1" = 1 ] && [ "$$PULL2" = 1 ]; then
+            echo "Модели скачаны; ollama list:"
+            ollama list
+          else
+            echo "Внимание: не все pull прошли. Выполните вручную: docker compose exec ollama ollama pull gemma3n:e4b && docker compose exec ollama ollama pull gemma3:4b-it-q4_K_M" >&2
+          fi
+        fi
+        wait
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sf http://127.0.0.1:11434/api/tags >/dev/null && ollama list 2>/dev/null | grep -q gemma3n && ollama list 2>/dev/null | grep -q 'gemma3:'",
+        ]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 1200s
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=portal
+      - POSTGRES_USER=portal
+      - POSTGRES_PASSWORD=portal
+    # Не публикуем 5432 наружу: на хосте часто уже есть Postgres.
+    # Backend ходит в БД по внутренней сети docker (db:5432).
+    volumes:
+      - portal_db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Веб-портал (React) + прокси /api → backend. Открывайте http://localhost:8010
+  web:
+    build: ./frontend
+    ports:
+      - "8010:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      - DATABASE_URL=postgresql+psycopg://portal:portal@db:5432/portal
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me}
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=720
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - MEDIA_ROOT=/data/media
+      # В Docker по умолчанию ходим в сервис ollama; с хоста задайте OLLAMA_BASE_URL=http://localhost:11434
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gemma3n:e4b}
+      - OLLAMA_VISION_MODEL=${OLLAMA_VISION_MODEL:-gemma3:4b-it-q4_K_M}
+    expose:
+      - "8000"
+    # Прямой доступ к API (агенты могут ходить на :8010 через web; для отладки — :8011)
+    ports:
+      - "8011:8000"
+    volumes:
+      - portal_media:/data/media
+    depends_on:
+      - db
+      - ollama
+    restart: unless-stopped
+
+volumes:
+  portal_db_data:
+  portal_media:
+  ollama_data:
+

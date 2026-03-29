@@ -1,0 +1,50 @@
+name: Build Windows Agent Installer
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      AW_EXTRAS: true
+      AW_PORTAL_URL: http://localhost:8010
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y
+
+      - name: Build ActivityWatch (with uploader)
+        working-directory: vendor/activitywatch
+        run: |
+          python -m venv venv
+          source venv/Scripts/activate
+          pip install poetry==1.4.2
+          poetry install
+          make build
+          poetry install
+          make package
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-agent-installer
+          path: vendor/activitywatch/dist/activitywatch-*-windows-*-setup.exe
+

@@ -1,0 +1,53 @@
+# Полный установщик ActivityWatch + aw-portal-uploader (Inno Setup).
+# Требуются инициализированные git submodules в prototip/vendor/activitywatch.
+name: Build Windows ActivityWatch installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      portal_url:
+        description: "URL портала для uploader (AW_PORTAL_URL)"
+        required: false
+        default: "http://localhost:8010"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      AW_EXTRAS: "true"
+      AW_PORTAL_URL: ${{ inputs.portal_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Build ActivityWatch (with portal uploader)
+        working-directory: prototip/vendor/activitywatch
+        run: |
+          python -m venv venv
+          source venv/Scripts/activate
+          pip install poetry==1.4.2
+          poetry install
+          make build
+          poetry install
+          make package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-agent-installer
+          path: prototip/vendor/activitywatch/dist/activitywatch-*-windows-*-setup.exe

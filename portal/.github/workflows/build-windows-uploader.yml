@@ -1,0 +1,36 @@
+name: Build Windows aw-portal-uploader.exe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_windows_uploader:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: portal/agent
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build exe (PyInstaller)
+        working-directory: portal/agent
+        run: pyinstaller --onefile --name aw-portal-uploader --collect-all requests --collect-all mss --collect-all tkinter aw_portal_uploader/__main__.py
+
+      - name: Upload exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aw-portal-uploader-windows
+          path: portal/agent/dist/aw-portal-uploader.exe
